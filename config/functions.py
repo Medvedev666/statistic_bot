@@ -11,6 +11,7 @@ from telegram.ext import (
 
 from .list import filters_list
 from .db import db
+from .config import logger
 
 async def make_buttons(buttons_list):
     keyboard = []
@@ -46,6 +47,7 @@ async def keyboard(button_text):
     return ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
 
 
+
 async def get_data(update: Update, context: CallbackContext):
     
     result_list = {}
@@ -72,4 +74,27 @@ async def get_data(update: Update, context: CallbackContext):
     print(f'{result_list=}')
 
 
+
+async def error_data(update: Update, context: CallbackContext):
+
+    user = f'@{update.message.from_user.username}'
+    if update.message.from_user.username == None:
+        user = f'{update.message.from_user.first_name} {update.message.from_user.last_name}'
+    
+    match update.message.chat.type:
+        case 'supergroup':
+            try:
+                theme = f'\nТема: {update.message.reply_to_message.forum_topic_created.name}'
+            except: theme = ''
+        case _: theme = ''
+
+    group = update.message.chat.title
+    if group == None:
+        group = 'Личный чат'
+    
+    logger.info(f'Не по шаблону: {update.message.from_user.id} :::: {update.message.text}')
+    return await context.bot.send_message(chat_id='-1002247298434', 
+                        text=f'Ответ не по шаблону, запись не сделана\nГруппа: {group}\n'
+                        f'Пользователь: {user}'
+                        f'{theme}')
 

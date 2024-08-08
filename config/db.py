@@ -1,4 +1,6 @@
 import sqlite3
+from datetime import datetime, timedelta
+
 from .config import logger, DATABASE_NAME
 from .list import spare_columns
 
@@ -39,6 +41,7 @@ class Database():
         except Exception as e:
             logger.error(f'Ошибка при создании таблицы stats: {e}')
 
+    
     def add_data(self, data_list):
 
         self.cursor.execute(f'INSERT INTO stats ('
@@ -53,8 +56,22 @@ class Database():
                     data_list['spare5'], data_list['spare6']))
         self.connection.commit()
 
+    def add_user(self, user_id, username):
+        try:
+            query = "SELECT COUNT(*) FROM users WHERE user_id = ?"
+            count = self.cursor.execute(query, (user_id,))
+            count = count.fetchone()[0]
+            if count > 0:
+                return
+
+            query = "INSERT INTO users (user_id, username) VALUES (?, ?)"
+            self.cursor.execute(query, (user_id, username))
+            self.connection.commit()
+            logger.info(f'Пользователь {username} успешно добавлен.')
+        except Exception as e:
+            logger.error(f'Ошибка add_user: {e}')
         
-    def get_spars(self, data, index):
+    def get_spars(self, data, index, fio: list):
         try:
             sums = {}
 
@@ -63,10 +80,53 @@ class Database():
                     case "day":
                         query =  f"SELECT SUM({column}) FROM stats WHERE date = ?"
                         result = self.cursor.execute(query, (data,))
+                    case "week":
+                        seven_days_ago = datetime.now() - timedelta(days=7)
+                        seven_days_ago = seven_days_ago.strftime('%d.%m.%Y')
+
+                        query = f"SELECT SUM({column}) FROM stats WHERE date >= ?"
+                        result = self.cursor.execute(query, (seven_days_ago,))
                     case "mes":
                         data = f"%{data}%"
+
                         query =  f"SELECT SUM({column}) FROM stats WHERE date LIKE ?"
                         result = self.cursor.execute(query, (data,))
+                    case "year":
+                        data = f"%{data}%"
+
+                        query = f"SELECT SUM({column}) FROM stats WHERE date LIKE ?"
+                        result = self.cursor.execute(query, (data,))
+                    case "usersday":
+                        fio_placeholders = ', '.join('?' * len(fio))
+
+                        query = f"SELECT SUM({column}) FROM stats WHERE date = ? AND fio IN ({fio_placeholders})"
+                        params = [data] + fio
+                        result = self.cursor.execute(query, params)
+                    case "usersweek":
+                        fio_placeholders = ', '.join('?' * len(fio))
+
+                        seven_days_ago = datetime.now() - timedelta(days=7)
+                        seven_days_ago = seven_days_ago.strftime('%d.%m.%Y')
+
+                        query = f"SELECT SUM({column}) FROM stats WHERE date >= ? AND fio IN ({fio_placeholders})"
+                        params = [seven_days_ago] + fio
+                        result = self.cursor.execute(query, params)
+                    case "usersmes":
+                        fio_placeholders = ', '.join('?' * len(fio))
+
+                        data = f"%{data}%"
+
+                        query =  f"SELECT SUM({column}) FROM stats WHERE date LIKE ? AND fio IN ({fio_placeholders})"
+                        params = [data] + fio
+                        result = self.cursor.execute(query, params)
+                    case "usersyear":
+                        fio_placeholders = ', '.join('?' * len(fio))
+                        
+                        data = f"%{data}%"
+
+                        query = f"SELECT SUM({column}) FROM stats WHERE date LIKE ? AND fio IN ({fio_placeholders})"
+                        params = [data] + fio
+                        result = self.cursor.execute(query, params)
                     case _:
                         query =  f"SELECT SUM({column}) FROM stats"
                         result = self.cursor.execute(query)
