@@ -261,6 +261,15 @@ async def show_week_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
     fio_list = update.message.text.replace('/show_week_users', '').strip()
     fio_list = [item.strip() for item in fio_list.split(',')]
 
+    # print(f'{fio_list=}')
+    if fio_list == ['']:
+        await context.bot.send_message(chat_id=update.effective_chat.id, 
+                                text=f'Введите команду в формате:',
+                                parse_mode=ParseMode.HTML)
+        return await context.bot.send_message(chat_id=update.effective_chat.id, 
+                                text=f'<b>/show_week_users Фамилия Имя, Фамилия Имя ...</b>',
+                                parse_mode=ParseMode.HTML)
+
     result = db.get_spars(data=None, index="usersweek", fio=fio_list)
     logger.info(f'{result=}')
 

@@ -56,7 +56,7 @@ async def get_data(update: Update, context: CallbackContext):
 
     result_list['group_id'] = update.effective_chat.id
     result_list['date'] = text_list[0]
-    result_list['fio'] = text_list[1]
+    result_list['fio'] = text_list[1].strip()
 
     text_list = update.message.text.replace(" ", "").split('\n')
 

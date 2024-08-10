@@ -4,6 +4,32 @@ from datetime import datetime, timedelta
 from .config import logger, DATABASE_NAME
 from .list import spare_columns
 
+
+def week_func(cursor, column, fio):
+    # print(f'{fio=}')
+    result_dict = {}
+    for i in range(1, 8):
+        days_ago = datetime.now() - timedelta(days=i)
+        days_ago = days_ago.strftime('%d.%m.%Y')
+        
+        query = f"SELECT SUM({column}) FROM stats WHERE date = ?"
+        result = cursor.execute(query, (days_ago,))
+        if fio != None:
+
+            fio_placeholders = ', '.join('?' * len(fio))
+            query = f"SELECT SUM({column}) FROM stats WHERE date = ? AND fio IN ({fio_placeholders})"
+            params = [days_ago] + fio
+            result = cursor.execute(query, params)
+
+        result = result.fetchone()[0]
+        if result == None:
+            result = 0
+        # print(f'{result=}')
+        # print(f'{days_ago=}')
+        result_dict[days_ago] = int(result)
+    return result_dict
+
+
 class Database():
     def __init__(self, db_name):
         self.connection = sqlite3.Connection(db_name)
@@ -74,6 +100,7 @@ class Database():
     def get_spars(self, data, index, fio: list):
         try:
             sums = {}
+            result_list = {}
 
             for column in spare_columns:
                 match index:
@@ -81,11 +108,7 @@ class Database():
                         query =  f"SELECT SUM({column}) FROM stats WHERE date = ?"
                         result = self.cursor.execute(query, (data,))
                     case "week":
-                        seven_days_ago = datetime.now() - timedelta(days=7)
-                        seven_days_ago = seven_days_ago.strftime('%d.%m.%Y')
-
-                        query = f"SELECT SUM({column}) FROM stats WHERE date >= ?"
-                        result = self.cursor.execute(query, (seven_days_ago,))
+                        result_list[column] = week_func(self.cursor, column, fio=None)
                     case "mes":
                         data = f"%{data}%"
 
@@ -103,14 +126,7 @@ class Database():
                         params = [data] + fio
                         result = self.cursor.execute(query, params)
                     case "usersweek":
-                        fio_placeholders = ', '.join('?' * len(fio))
-
-                        seven_days_ago = datetime.now() - timedelta(days=7)
-                        seven_days_ago = seven_days_ago.strftime('%d.%m.%Y')
-
-                        query = f"SELECT SUM({column}) FROM stats WHERE date >= ? AND fio IN ({fio_placeholders})"
-                        params = [seven_days_ago] + fio
-                        result = self.cursor.execute(query, params)
+                        result_list[column] = week_func(self.cursor, column, fio=fio)
                     case "usersmes":
                         fio_placeholders = ', '.join('?' * len(fio))
 
@@ -131,11 +147,17 @@ class Database():
                         query =  f"SELECT SUM({column}) FROM stats"
                         result = self.cursor.execute(query)
                 
-                result = result.fetchone()[0]
-                if result is None:
-                    result = ''
-                sums[column] = result
+                if result_list =={}:
+                    result = result.fetchone()[0]
+                    if result is None:
+                        result = ''
+                    sums[column] = result
 
+            if result_list != {}:
+                sums = {key: sum(value.values()) for key, value in result_list.items()}
+                logger.info(f'{result_list=}')
+
+            logger.info(f'{sums=}')
             return sums
 
         except Exception as e:
